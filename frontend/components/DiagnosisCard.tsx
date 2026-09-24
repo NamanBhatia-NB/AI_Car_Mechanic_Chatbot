@@ -122,6 +122,7 @@ export const DiagnosisCard: React.FC<DiagnosisCardProps> = ({ diagnosis, onBookC
               justifyContent: 'center',
               color: 'var(--amber-primary)'
             }}
+          >
             <IndianRupee size={20} />
           </div>
           <div>
