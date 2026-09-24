@@ -13,13 +13,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-COPY requirements.txt /app/
+COPY backend/requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend source code
-COPY . /app/
+# Copy backend source code into /app
+COPY backend/ /app/
 
-# Run database migrations and collect static files
+# Collect static files and prepare db
 RUN python manage.py migrate --no-input || true
 RUN python manage.py collectstatic --no-input || true
 
