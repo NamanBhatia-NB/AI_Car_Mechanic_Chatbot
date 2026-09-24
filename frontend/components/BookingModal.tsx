@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { Diagnosis, Booking } from '../lib/types';
 import { createBooking } from '../lib/api';
 import {
@@ -209,9 +210,32 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               </div>
             </div>
 
-            <button onClick={handleResetAndClose} className="btn-primary" style={{ width: '100%' }}>
-              Back to Mechanic Chat
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <Link
+                href={`/bookings?ref=${confirmedBooking.booking_reference}`}
+                className="btn-primary"
+                style={{
+                  width: '100%',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  textDecoration: 'none',
+                  padding: '12px',
+                  fontSize: '0.92rem'
+                }}
+                id="btn-modal-view-appointment"
+              >
+                <Calendar size={16} /> View Appointment & Live Status
+              </Link>
+              <button
+                onClick={handleResetAndClose}
+                className="btn-secondary"
+                style={{ width: '100%', padding: '10px', fontSize: '0.85rem' }}
+              >
+                Back to Mechanic Chat
+              </button>
+            </div>
           </div>
         ) : (
           /* Booking Form */

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   History,
   X,
@@ -278,6 +279,32 @@ export const HistorySidebar: React.FC<HistorySidebarProps> = ({
             </div>
           </div>
         )}
+
+        <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <Link
+            href="/bookings"
+            onClick={onClose}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              width: '100%',
+              padding: '10px 14px',
+              background: 'rgba(245, 158, 11, 0.1)',
+              border: '1px solid rgba(245, 158, 11, 0.35)',
+              borderRadius: '8px',
+              color: 'var(--amber-primary)',
+              fontSize: '0.84rem',
+              fontWeight: 600,
+              textDecoration: 'none',
+              transition: 'all 0.2s ease',
+            }}
+            id="link-sidebar-all-appointments"
+          >
+            <Calendar size={15} /> Open All Appointments & Bookings
+          </Link>
+        </div>
       </div>
     </div>
   );

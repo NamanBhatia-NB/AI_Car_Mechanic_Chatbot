@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   Wrench,
   ShieldCheck,
@@ -142,6 +143,31 @@ export default function HomePage() {
               {backendHealth.status === 'healthy' ? 'API Online' : 'Connecting to Bay'}
             </span>
           </div>
+
+          {/* Appointments Navigation Link */}
+          <Link
+            href="/bookings"
+            className="btn-secondary"
+            style={{
+              fontSize: '0.82rem',
+              padding: '6px 12px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              textDecoration: 'none',
+              color: '#f8fafc',
+              background: 'rgba(30, 41, 59, 0.85)',
+              border: '1px solid rgba(245, 158, 11, 0.4)',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+            id="btn-nav-appointments"
+            title="View and track your scheduled mechanic appointments"
+          >
+            <Calendar size={15} style={{ color: 'var(--amber-primary)' }} />
+            <span>My Appointments</span>
+          </Link>
 
           {/* Garage Records Drawer Toggle */}
           <button
