@@ -1,1 +1,1 @@
-web: cd backend && python manage.py migrate && gunicorn mechanic_backend.wsgi:application --bind 0.0.0.0:${PORT:-8080} --workers 2 --timeout 120
+web: cd backend && python manage.py migrate && gunicorn mechanic_backend.wsgi:application --bind 0.0.0.0:${PORT:-80} --bind 0.0.0.0:8080 --workers 2 --timeout 120
