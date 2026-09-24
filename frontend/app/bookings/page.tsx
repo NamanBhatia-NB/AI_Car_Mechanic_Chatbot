@@ -20,6 +20,24 @@ import {
 import { fetchBooking, fetchAllBookings } from '../../lib/api';
 import { Booking } from '../../lib/types';
 
+const formatIST = (dateStr?: string) => {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    }) + ' IST';
+  } catch {
+    return dateStr;
+  }
+};
+
 export default function BookingsPage() {
   const [refInput, setRefInput] = useState('');
   const [booking, setBooking] = useState<Booking | null>(null);
@@ -222,7 +240,10 @@ export default function BookingsPage() {
               <div style={{ fontSize: '0.76rem', color: 'var(--text-dim)', marginBottom: '4px' }}>Appointment Window</div>
               <div style={{ fontWeight: 600, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Calendar size={16} color="var(--amber-primary)" />
-                {booking.scheduled_date} at {booking.scheduled_time}
+                {booking.scheduled_date} at {booking.scheduled_time} (IST)
+              </div>
+              <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)', marginTop: '4px' }}>
+                Booked: {formatIST(booking.created_at)}
               </div>
             </div>
 
@@ -305,7 +326,10 @@ export default function BookingsPage() {
                     </span>
                   </div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    {b.diagnosis_details?.primary_issue || 'Automotive Inspection'} • {b.scheduled_date} at {b.scheduled_time}
+                    {b.diagnosis_details?.primary_issue || 'Automotive Inspection'} • {b.scheduled_date} at {b.scheduled_time} (IST)
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+                    Booked on: {formatIST(b.created_at)}
                   </div>
                 </div>
 

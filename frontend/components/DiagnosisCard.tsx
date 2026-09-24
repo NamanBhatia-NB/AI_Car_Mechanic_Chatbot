@@ -127,7 +127,7 @@ export const DiagnosisCard: React.FC<DiagnosisCardProps> = ({ diagnosis, onBookC
           </div>
           <div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>
-              Standard Service Rate
+              Estimated Repair Cost
             </div>
             <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#f8fafc' }}>
               {minCost === maxCost

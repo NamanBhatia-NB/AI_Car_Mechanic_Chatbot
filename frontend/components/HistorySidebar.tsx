@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   History,
   X,
@@ -7,30 +7,62 @@ import {
   Wrench,
   CheckCircle,
   Clock,
-  ExternalLink,
-  ShieldCheck,
-  Plus
+  Plus,
+  MessageSquare,
+  ChevronRight
 } from 'lucide-react';
-import { fetchBooking } from '../lib/api';
+import { fetchBooking, fetchChatSessions } from '../lib/api';
 import { Booking } from '../lib/types';
 
 interface HistorySidebarProps {
   isOpen: boolean;
   onClose: () => void;
   onNewSession: () => void;
+  onSelectSession?: (id: string) => void;
   currentSessionId: string | null;
 }
+
+const formatIST = (dateStr?: string) => {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    }) + ' IST';
+  } catch {
+    return dateStr;
+  }
+};
 
 export const HistorySidebar: React.FC<HistorySidebarProps> = ({
   isOpen,
   onClose,
   onNewSession,
+  onSelectSession,
   currentSessionId
 }) => {
   const [bookingRefInput, setBookingRefInput] = useState('');
   const [searchedBooking, setSearchedBooking] = useState<Booking | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+
+  const [pastSessions, setPastSessions] = useState<any[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setSessionsLoading(true);
+      fetchChatSessions()
+        .then((res) => setPastSessions(res.sessions || []))
+        .catch(() => setPastSessions([]))
+        .finally(() => setSessionsLoading(false));
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -60,7 +92,7 @@ export const HistorySidebar: React.FC<HistorySidebarProps> = ({
         right: 0,
         bottom: 0,
         width: '100%',
-        maxWidth: '400px',
+        maxWidth: '430px',
         background: '#0d131f',
         borderLeft: '1px solid var(--border-subtle)',
         boxShadow: '-10px 0 30px rgba(0, 0, 0, 0.7)',
@@ -72,7 +104,7 @@ export const HistorySidebar: React.FC<HistorySidebarProps> = ({
       }}
     >
       {/* Drawer Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <History size={20} color="var(--amber-primary)" />
           <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#f8fafc' }}>
@@ -94,7 +126,7 @@ export const HistorySidebar: React.FC<HistorySidebarProps> = ({
       </div>
 
       {/* Action: Start New Diagnosis */}
-      <div style={{ marginBottom: '24px' }}>
+      <div style={{ marginBottom: '22px' }}>
         <button
           onClick={() => {
             onNewSession();
@@ -112,8 +144,62 @@ export const HistorySidebar: React.FC<HistorySidebarProps> = ({
         )}
       </div>
 
+      {/* Past Diagnostic Chats List */}
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--amber-primary)', textTransform: 'uppercase', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <MessageSquare size={14} /> Past Diagnostic Chats
+        </div>
+
+        {sessionsLoading ? (
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)', padding: '10px 0' }}>
+            Loading previous diagnostic sessions...
+          </div>
+        ) : pastSessions.length === 0 ? (
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)', fontStyle: 'italic', padding: '10px 0' }}>
+            No past chats recorded yet.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '240px', overflowY: 'auto' }}>
+            {pastSessions.map((s) => {
+              const isActive = s.id === currentSessionId;
+              return (
+                <div
+                  key={s.id}
+                  onClick={() => {
+                    if (onSelectSession) {
+                      onSelectSession(s.id);
+                      onClose();
+                    }
+                  }}
+                  style={{
+                    background: isActive ? 'rgba(245, 158, 11, 0.12)' : 'rgba(15, 23, 42, 0.7)',
+                    border: isActive ? '1px solid var(--amber-primary)' : '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '8px',
+                    padding: '10px 12px',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <span style={{ fontWeight: 600, fontSize: '0.84rem', color: isActive ? 'var(--amber-primary)' : '#f8fafc' }}>
+                      {s.vehicle}
+                    </span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
+                      {formatIST(s.created_at)}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.76rem', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {s.primary_issue ? `Report: ${s.primary_issue}` : s.preview}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Booking Status Lookup */}
-      <div style={{ marginBottom: '28px' }}>
+      <div style={{ marginBottom: '24px' }}>
         <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--amber-primary)', textTransform: 'uppercase', marginBottom: '8px' }}>
           Check Appointment Status
         </div>
@@ -182,7 +268,7 @@ export const HistorySidebar: React.FC<HistorySidebarProps> = ({
               </span>
             </div>
             <div style={{ fontSize: '0.82rem', color: '#e2e8f0', marginBottom: '4px' }}>
-              <strong>Date:</strong> {searchedBooking.scheduled_date} ({searchedBooking.scheduled_time})
+              <strong>Date:</strong> {searchedBooking.scheduled_date} ({searchedBooking.scheduled_time}) (IST)
             </div>
             <div style={{ fontSize: '0.82rem', color: '#94a3b8', marginBottom: '4px' }}>
               <strong>Service:</strong> {searchedBooking.service_type}
@@ -192,44 +278,6 @@ export const HistorySidebar: React.FC<HistorySidebarProps> = ({
             </div>
           </div>
         )}
-      </div>
-
-      {/* Senior Mechanic Profile Info */}
-      <div
-        style={{
-          marginTop: 'auto',
-          background: 'rgba(15, 23, 42, 0.6)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: '12px',
-          padding: '14px'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-          <ShieldCheck size={18} color="#10b981" />
-          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#f8fafc' }}>
-            Marcus Vance, ASE Master
-          </span>
-        </div>
-        <p style={{ fontSize: '0.76rem', color: 'var(--text-dim)', lineHeight: 1.4, marginBottom: '10px' }}>
-          Lead Automotive Diagnostic Specialist with 25+ years hands-on master technician certification.
-        </p>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <a
-            href="http://localhost:8000/api/docs/"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              fontSize: '0.75rem',
-              color: 'var(--amber-primary)',
-              textDecoration: 'none',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}
-          >
-            Swagger API Docs <ExternalLink size={12} />
-          </a>
-        </div>
       </div>
     </div>
   );

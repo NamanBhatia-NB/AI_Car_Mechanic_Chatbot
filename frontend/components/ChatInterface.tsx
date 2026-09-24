@@ -14,40 +14,99 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { ChatMessage, MediaAttachment, Diagnosis } from '../lib/types';
-import { sendMessage } from '../lib/api';
+import { sendMessage, fetchSessionHistory } from '../lib/api';
 import { AIUsageBadge } from './AIUsageBadge';
 import { DiagnosisCard } from './DiagnosisCard';
 import { MediaUploader } from './MediaUploader';
 
+// Clean text formatter that parses **bold** markdown tags, bullet points, and numbered lists
+const FormattedContent: React.FC<{ text: string }> = ({ text }) => {
+  if (!text) return null;
+
+  const lines = text.split('\n');
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.92rem', lineHeight: '1.6' }}>
+      {lines.map((line, lineIdx) => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          return <div key={lineIdx} style={{ height: '4px' }} />;
+        }
+
+        // Parse inline **bold**
+        const parts: (string | React.ReactNode)[] = [];
+        let lastIndex = 0;
+        const boldRegex = /\*\*(.*?)\*\*/g;
+        let match;
+
+        while ((match = boldRegex.exec(line)) !== null) {
+          if (match.index > lastIndex) {
+            parts.push(line.substring(lastIndex, match.index));
+          }
+          parts.push(
+            <strong
+              key={`b-${lineIdx}-${match.index}`}
+              style={{
+                fontWeight: 700,
+                color: '#f8fafc',
+              }}
+            >
+              {match[1]}
+            </strong>
+          );
+          lastIndex = match.index + match[0].length;
+        }
+
+        if (lastIndex < line.length) {
+          parts.push(line.substring(lastIndex));
+        }
+
+        const isBullet = trimmed.startsWith('•') || trimmed.startsWith('- ') || trimmed.startsWith('* ');
+        const isNumbered = /^\d+\.\s/.test(trimmed);
+
+        return (
+          <div
+            key={lineIdx}
+            style={{
+              paddingLeft: isBullet || isNumbered ? '12px' : '0',
+            }}
+          >
+            {parts}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 interface ChatInterfaceProps {
   sessionId: string | null;
-  setSessionId: (id: string) => void;
+  setSessionId: (id: string | null) => void;
   onBookClick: (diagnosis: Diagnosis) => void;
 }
+
+const DEFAULT_WELCOME_MSG: ChatMessage = {
+  id: 'welcome',
+  sender: 'mechanic',
+  content:
+    "Hey friend, I'm Marcus Vance, Senior Automotive Diagnostic Technician with 25+ years in the bay. " +
+    "I'm here to help you troubleshoot strange noises, warning lights, fluid leaks, or starting issues. " +
+    "What vehicle are you driving, and what's going on under the hood?",
+  ai_invoked: false,
+  quick_replies: [
+    'Rapid clicking when starting (car dead)',
+    'Squeaking / grinding brakes',
+    'Check Engine light is blinking',
+    'Engine temperature gauge in red',
+  ],
+};
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   sessionId,
   setSessionId,
   onBookClick,
 }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      sender: 'mechanic',
-      content:
-        "Hey friend, I'm Marcus Vance, Senior Automotive Diagnostic Technician with 25+ years in the bay. " +
-        "I'm here to help you troubleshoot strange noises, warning lights, fluid leaks, or starting issues. " +
-        "What vehicle are you driving, and what's going on under the hood?",
-      ai_invoked: false,
-      quick_replies: [
-        'Rapid clicking when starting (car dead)',
-        'Squeaking / grinding brakes',
-        'Check Engine light is blinking',
-        'Engine temperature gauge in red',
-      ],
-    },
-  ]);
-
+  const [messages, setMessages] = useState<ChatMessage[]>([DEFAULT_WELCOME_MSG]);
   const [inputText, setInputText] = useState('');
   const [pendingMedia, setPendingMedia] = useState<MediaAttachment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -55,6 +114,55 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Restore chat session from localStorage on initial page load
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const storedId = localStorage.getItem('instant_mechanic_session_id');
+    if (storedId) {
+      setSessionId(storedId);
+      setIsLoading(true);
+      fetchSessionHistory(storedId)
+        .then((data) => {
+          if (data && data.messages && data.messages.length > 0) {
+            const restoredMessages: ChatMessage[] = data.messages.map((m: any, idx: number) => ({
+              id: m.id ? String(m.id) : `hist-${idx}`,
+              sender: m.sender,
+              content: m.content,
+              ai_invoked: m.ai_invoked,
+              diagnosis: (idx === data.messages.length - 1 && data.diagnosis) ? data.diagnosis : undefined,
+            }));
+
+            // Always ensure Marcus Vance's opening greeting is the first message in the bay
+            const hasWelcome = restoredMessages.some(
+              (m) => m.sender === 'mechanic' && m.content.includes("Marcus Vance")
+            );
+
+            if (!hasWelcome) {
+              setMessages([DEFAULT_WELCOME_MSG, ...restoredMessages]);
+            } else {
+              setMessages(restoredMessages);
+            }
+          }
+        })
+        .catch((err) => {
+          console.warn('Could not restore past session:', err);
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
+    }
+  }, []);
+
+  const handleResetChat = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('instant_mechanic_session_id');
+    }
+    setSessionId(null);
+    setMessages([DEFAULT_WELCOME_MSG]);
+    setPendingMedia([]);
+    setErrorMsg(null);
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -97,9 +205,12 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     try {
       const response = await sendMessage(sessionId, textToSend.trim(), mediaIds);
 
-      // Save/Update session ID
+      // Save/Update session ID in state & localStorage
       if (response.session_id) {
         setSessionId(response.session_id);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('instant_mechanic_session_id', response.session_id);
+        }
       }
 
       // Add mechanic reply
@@ -129,32 +240,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   };
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: 'calc(100vh - 120px)',
-        maxHeight: '850px',
-        width: '100%',
-        background: 'rgba(15, 23, 42, 0.75)',
-        backdropFilter: 'blur(16px)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: '20px',
-        overflow: 'hidden',
-        boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
-      }}
-    >
+    <div className="chat-main-card">
       {/* Mechanic Header */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '16px 20px',
-          background: 'rgba(15, 23, 42, 0.9)',
-          borderBottom: '1px solid var(--border-subtle)',
-        }}
-      >
+      <div className="chat-card-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div
             style={{
@@ -210,16 +298,23 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div
+          <button
+            onClick={handleResetChat}
+            title="Start a fresh diagnostic session"
+            className="btn-secondary"
             style={{
-              fontSize: '0.75rem',
-              color: 'var(--text-dim)',
-              display: 'none',
-              sm: 'block',
+              fontSize: '0.78rem',
+              padding: '6px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'rgba(255, 255, 255, 0.05)',
             }}
+            id="btn-reset-chat"
           >
-            AI Cost Optimization: <strong style={{ color: '#10b981' }}>Active (Tier 0-3)</strong>
-          </div>
+            <RotateCcw size={13} />
+            <span>New Chat</span>
+          </button>
         </div>
       </div>
 
@@ -340,15 +435,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   </div>
                 )}
 
-                {/* Text Content */}
-                <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
-
-                {/* Transparency Badge for Mechanic message */}
-                {msg.sender === 'mechanic' && (
-                  <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'flex-start' }}>
-                    <AIUsageBadge aiInvoked={msg.ai_invoked} />
-                  </div>
-                )}
+                {/* Text Content with Markdown Formatting */}
+                <FormattedContent text={msg.content} />
 
                 {/* Embedded Diagnosis Card if available */}
                 {msg.diagnosis && (
@@ -490,17 +578,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         </div>
       )}
 
-      {/* Input Bar */}
-      <div
-        style={{
-          padding: '14px 20px',
-          background: 'rgba(15, 23, 42, 0.95)',
-          borderTop: '1px solid var(--border-subtle)',
-          display: 'flex',
-          alignItems: 'flex-end',
-          gap: '12px',
-        }}
-      >
+      {/* Responsive Input Bar */}
+      <div className="chat-input-container">
         {/* Media Uploader button group */}
         <MediaUploader
           sessionId={sessionId}
@@ -508,29 +587,17 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           disabled={isLoading}
         />
 
-        {/* Text Area */}
-        <div style={{ flex: 1, position: 'relative' }}>
+        {/* Text Area with min-width: 0 protection */}
+        <div className="chat-textarea-wrapper">
           <textarea
             ref={textareaRef}
             rows={1}
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Describe sound, warning light, or car symptom (e.g. 2017 Civic squealing brakes)..."
-            style={{
-              width: '100%',
-              minHeight: '44px',
-              maxHeight: '120px',
-              background: 'rgba(30, 41, 59, 0.8)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: '12px',
-              padding: '12px 14px',
-              color: '#f8fafc',
-              fontSize: '0.92rem',
-              outline: 'none',
-              resize: 'none',
-              fontFamily: 'inherit',
-            }}
+            placeholder="Describe car symptom, light, or noise..."
+            className="chat-textarea-field"
+            aria-label="Vehicle symptom description input"
           />
         </div>
 
@@ -539,14 +606,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           type="button"
           onClick={() => handleSend()}
           disabled={isLoading || (!inputText.trim() && pendingMedia.length === 0)}
-          className="btn-primary"
-          style={{
-            height: '44px',
-            width: '44px',
-            padding: 0,
-            borderRadius: '12px',
-            flexShrink: 0,
-          }}
+          className="btn-primary chat-send-btn"
           id="btn-send-chat"
           aria-label="Send message to mechanic"
         >

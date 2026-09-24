@@ -12,6 +12,7 @@ class ChatSession(models.Model):
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    client_id = models.CharField(max_length=120, blank=True, default='', db_index=True, help_text="Unique client device or user identifier")
     car_make = models.CharField(max_length=100, blank=True, default='')
     car_model = models.CharField(max_length=100, blank=True, default='')
     car_year = models.IntegerField(null=True, blank=True)

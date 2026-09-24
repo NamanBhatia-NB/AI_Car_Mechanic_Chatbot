@@ -2,6 +2,16 @@ import { ChatResponse, MediaAttachment, Diagnosis, Booking, BookingRequest } fro
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
+export function getClientId(): string {
+  if (typeof window === 'undefined') return '';
+  let cid = localStorage.getItem('instant_mechanic_client_id');
+  if (!cid) {
+    cid = 'client_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now().toString(36);
+    localStorage.setItem('instant_mechanic_client_id', cid);
+  }
+  return cid;
+}
+
 export async function sendMessage(
   sessionId: string | null,
   message: string,
@@ -9,6 +19,7 @@ export async function sendMessage(
 ): Promise<ChatResponse> {
   const payload = {
     session_id: sessionId || undefined,
+    client_id: getClientId(),
     message,
     media_ids: mediaIds,
   };
@@ -103,6 +114,29 @@ export async function fetchSessionHistory(sessionId: string): Promise<any> {
   const response = await fetch(`${API_BASE_URL}/chat/history/${sessionId}/`);
   if (!response.ok) {
     throw new Error(`Failed to fetch session history.`);
+  }
+  return response.json();
+}
+
+export async function fetchChatSessions(): Promise<{ sessions: Array<{
+  id: string;
+  vehicle: string;
+  stage: string;
+  created_at: string;
+  message_count: number;
+  primary_issue: string | null;
+  severity: string | null;
+  preview: string;
+}> }> {
+  const cid = getClientId();
+  const url = cid
+    ? `${API_BASE_URL}/chat/sessions/?client_id=${encodeURIComponent(cid)}`
+    : `${API_BASE_URL}/chat/sessions/`;
+  const response = await fetch(url, {
+    cache: 'no-store',
+  });
+  if (!response.ok) {
+    return { sessions: [] };
   }
   return response.json();
 }

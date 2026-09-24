@@ -22,9 +22,13 @@ AUTOMOTIVE_KEYWORDS = {
     'audi', 'volkswagen', 'vw', 'hyundai', 'kia', 'subaru', 'mazda', 'lexus', 'dodge',
     'jeep', 'ram', 'chrysler', 'tesla', 'volvo', 'porsche', 'land rover', 'acura', 'infiniti',
     'buick', 'cadillac', 'gmc', 'mitsubishi', 'mini', 'jaguar', 'fiat', 'genesis', 'lincoln',
-    'maruti', 'suzuki', 'tata', 'mahindra', 'skoda', 'renault', 'peugeot',
+    'maruti', 'suzuki', 'tata', 'mahindra', 'skoda', 'renault', 'peugeot', 'mg', 'byd',
     'civic', 'corolla', 'accord', 'camry', 'f150', 'f-150', 'mustang', 'silverado', 'elantra',
     'sonata', 'altima', 'sentra', 'rav4', 'crv', 'cr-v', 'prius', 'miata', 'wrangler',
+    'swift', 'dzire', 'wagonr', 'wagon r', 'baleno', 'brezza', 'creta', 'i20', 'i10', 'verna',
+    'venue', 'santro', 'nexon', 'harrier', 'safari', 'punch', 'tiago', 'tigor', 'altroz',
+    'scorpio', 'thar', 'xuv700', 'xuv300', 'bolero', 'innova', 'fortuner', 'seltos', 'sonet',
+    'carens', 'city', 'amaze', 'alto', 'ertiga', 'celerio', 'ignis', 'triber', 'kwid', 'kushaq',
     
     # Automotive symptoms & sounds
     'squeak', 'squeaking', 'squeal', 'squealing', 'grind', 'grinding', 'rattle', 'rattling',
@@ -35,6 +39,7 @@ AUTOMOTIVE_KEYWORDS = {
     'crank', 'cranking', 'no start', 'wont start', "won't start", 'dead', 'drained',
     'smell', 'odor', 'burning', 'spongy', 'stiff', 'jerking', 'slipping', 'rough idle', 'surge',
     'mileage', 'rpm', 'obd', 'obd2', 'obd-ii', 'code', 'dtc', 'p0', 'p1', 'p2',
+    'cooling', 'cool', 'not cooling', 'warm air', 'no cooling', 'chilling', 'chill',
     
     # Automotive service, maintenance & parts
     'service', 'maintenance', 'tune up', 'mechanic', 'repair', 'repairs', 'inspection',
@@ -44,6 +49,7 @@ AUTOMOTIVE_KEYWORDS = {
     'book', 'booking', 'appointment', 'schedule', 'replace', 'inspect', 'technician',
     'garage', 'workshop', 'towing', 'tow', 'mile', 'miles', 'km', 'kms',
     'carburetor', 'carburetors', 'carb', 'carbs', 'carebeaurator', 'carbeaurator', 'choke',
+    'compressor', 'condenser', 'freon', 'refrigerant', 'blower', 'evaporator',
     'tool', 'tools', 'equipment', 'safe', 'safety', 'danger', 'dangerous'
 }
 
@@ -163,11 +169,9 @@ class GuardrailService:
                     has_automotive_match = True
                     break
 
-        # 6. If in active session, check if query matches a valid slot answer (e.g. "braking", "morning", "yes", "no")
+        # 6. If in active session, user responses (car models, conditions, clarifications) are valid
         if not has_automotive_match and is_active_session:
-            # Check if any recognized slot-filling answer is in the user text
-            if clean_text in VALID_SLOT_ANSWERS or any(ans in clean_text for ans in VALID_SLOT_ANSWERS):
-                has_automotive_match = True
+            has_automotive_match = True
 
         # 7. If STILL no automotive match, reject as off-topic!
         if not has_automotive_match:

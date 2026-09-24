@@ -104,29 +104,18 @@ export const MediaUploader: React.FC<MediaUploaderProps> = ({
         style={{ display: 'none' }}
       />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+      <div className="chat-media-group">
         {/* Photo Button */}
         <button
           type="button"
           onClick={() => triggerUpload('image/*')}
           disabled={disabled || isUploading}
-          style={{
-            background: 'rgba(255, 255, 255, 0.06)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '8px',
-            color: '#cbd5e1',
-            padding: '8px 10px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            cursor: 'pointer',
-            fontSize: '0.8rem',
-            transition: 'all 0.15s ease'
-          }}
+          className="media-upload-btn"
           title="Upload photo of dashboard light, leaking fluid, or worn brake pads"
+          aria-label="Upload photo"
         >
-          <Camera size={15} color="var(--amber-primary)" />
-          <span style={{ display: 'none', md: 'inline' }}>Photo</span>
+          <Camera size={16} color="var(--amber-primary)" />
+          <span className="media-btn-label">Photo</span>
         </button>
 
         {/* Audio / Engine Sound Recorder */}
@@ -134,23 +123,17 @@ export const MediaUploader: React.FC<MediaUploaderProps> = ({
           type="button"
           onClick={toggleAudioRecording}
           disabled={disabled || isUploading}
+          className="media-upload-btn"
           style={{
-            background: isRecording ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.06)',
-            border: isRecording ? '1px solid #ef4444' : '1px solid var(--border-subtle)',
-            borderRadius: '8px',
-            color: isRecording ? '#fca5a5' : '#cbd5e1',
-            padding: '8px 10px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            cursor: 'pointer',
-            fontSize: '0.8rem',
-            transition: 'all 0.15s ease'
+            background: isRecording ? 'rgba(239, 68, 68, 0.25)' : undefined,
+            borderColor: isRecording ? '#ef4444' : undefined,
+            color: isRecording ? '#fca5a5' : undefined,
           }}
           title="Record or upload engine knocking, squealing, or ticking audio"
+          aria-label="Record or upload engine audio"
         >
-          <Mic size={15} color={isRecording ? '#ef4444' : '#22d3ee'} className={isRecording ? 'pulse-indicator' : ''} />
-          <span>{isRecording ? 'Stop Recording' : 'Engine Sound'}</span>
+          <Mic size={16} color={isRecording ? '#ef4444' : '#22d3ee'} className={isRecording ? 'pulse-indicator' : ''} />
+          <span className="media-btn-label">{isRecording ? 'Stop' : 'Audio'}</span>
         </button>
 
         {/* Video Button */}
@@ -158,23 +141,12 @@ export const MediaUploader: React.FC<MediaUploaderProps> = ({
           type="button"
           onClick={() => triggerUpload('video/*')}
           disabled={disabled || isUploading}
-          style={{
-            background: 'rgba(255, 255, 255, 0.06)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '8px',
-            color: '#cbd5e1',
-            padding: '8px 10px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            cursor: 'pointer',
-            fontSize: '0.8rem',
-            transition: 'all 0.15s ease'
-          }}
+          className="media-upload-btn"
           title="Upload video clip of exhaust smoke, rattling component, or engine shudder"
+          aria-label="Upload video"
         >
-          <Film size={15} color="#a78bfa" />
-          <span>Video</span>
+          <Film size={16} color="#a78bfa" />
+          <span className="media-btn-label">Video</span>
         </button>
       </div>
 

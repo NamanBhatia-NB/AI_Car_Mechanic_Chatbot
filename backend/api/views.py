@@ -1,6 +1,7 @@
 import os
 import random
 import uuid
+from decimal import Decimal
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.views import APIView
@@ -46,17 +47,37 @@ class ChatView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         session_id = serializer.validated_data.get('session_id')
+        client_id = serializer.validated_data.get('client_id') or request.headers.get('X-Client-ID', '')
         user_text = serializer.validated_data.get('message', '').strip()
         media_ids = serializer.validated_data.get('media_ids', [])
 
-        # 1. Retrieve or create ChatSession
+        # 1. Retrieve or create ChatSession associated with this client
+        is_new_session = False
         if session_id:
             try:
                 session = ChatSession.objects.get(id=session_id)
+                if client_id and not session.client_id:
+                    session.client_id = client_id
+                    session.save()
             except ChatSession.DoesNotExist:
-                session = ChatSession.objects.create(id=session_id)
+                session = ChatSession.objects.create(id=session_id, client_id=client_id or '')
+                is_new_session = True
         else:
-            session = ChatSession.objects.create()
+            session = ChatSession.objects.create(client_id=client_id or '')
+            is_new_session = True
+
+        # Persist Marcus Vance's default welcome greeting as the very first message
+        if is_new_session or session.messages.count() == 0:
+            ChatMessage.objects.create(
+                session=session,
+                sender='mechanic',
+                content=(
+                    "Hey friend, I'm Marcus Vance, Senior Automotive Diagnostic Technician with 25+ years in the bay. "
+                    "I'm here to help you troubleshoot strange noises, warning lights, fluid leaks, or starting issues. "
+                    "What vehicle are you driving, and what's going on under the hood?"
+                ),
+                ai_invoked=False
+            )
 
         # Link media attachments to session if provided
         media_attachments = []
@@ -135,9 +156,9 @@ class ChatView(APIView):
         ai_invoked = False
 
         if not diagnosis_obj:
-            # Check conversation text + last user messages for rule match
-            all_text = " ".join([m.content for m in session.messages.all()])
-            matched_rule = RuleDiagnosisEngine.match_rule(all_text)
+            # Check ONLY user messages for mechanical rule match (never search mechanic's own questions!)
+            user_text_corpus = " ".join([m.content for m in session.messages.filter(sender='user')])
+            matched_rule = RuleDiagnosisEngine.match_rule(user_text_corpus)
 
             if matched_rule and not has_media:
                 # Tier 2: Zero-cost rule match
@@ -156,9 +177,15 @@ class ChatView(APIView):
                     ai_generated=False
                 )
                 ai_invoked = False
+                price_range = (
+                    f"₹{diagnosis_obj.estimated_cost_min:,.0f} - ₹{diagnosis_obj.estimated_cost_max:,.0f}"
+                    if diagnosis_obj.estimated_cost_min != diagnosis_obj.estimated_cost_max
+                    else f"₹{diagnosis_obj.estimated_cost_min:,.0f}"
+                )
                 mechanic_reply = (
                     f"Based on my garage inspection of the symptoms for your {session.car_year or ''} {session.car_make or 'vehicle'} "
                     f"{session.car_model or ''}, I have generated your diagnostic report: **{diagnosis_obj.primary_issue}**. "
+                    f"Estimated repair range: **{price_range}**. "
                     f"Check out the diagnostic breakdown below. If you'd like to get this fixed, you can book one of our certified mechanics directly!"
                 )
             else:
@@ -173,6 +200,17 @@ class ChatView(APIView):
                     media_summaries=media_summaries
                 )
 
+                cost_min_raw = ai_diag.get('cost_min', '1499.00')
+                cost_max_raw = ai_diag.get('cost_max', '3899.00')
+                try:
+                    c_min = Decimal(str(cost_min_raw))
+                except Exception:
+                    c_min = Decimal('1499.00')
+                try:
+                    c_max = Decimal(str(cost_max_raw))
+                except Exception:
+                    c_max = Decimal('3899.00')
+
                 diagnosis_obj = Diagnosis.objects.create(
                     session=session,
                     primary_issue=ai_diag['primary_issue'],
@@ -181,17 +219,22 @@ class ChatView(APIView):
                     symptoms=ai_diag.get('symptoms', []),
                     possible_causes=ai_diag.get('possible_causes', []),
                     recommended_repairs=ai_diag.get('recommended_repairs', []),
-                    estimated_cost_min=ai_diag.get('cost_min', Decimal('2499.00')),
-                    estimated_cost_max=ai_diag.get('cost_max', Decimal('2499.00')),
+                    estimated_cost_min=c_min,
+                    estimated_cost_max=c_max,
                     diy_friendly=ai_diag.get('diy_friendly', False),
                     summary_notes=ai_diag.get('summary', ''),
                     ai_generated=ai_diag.get('ai_generated', True)
                 )
                 ai_invoked = ai_diag.get('ai_generated', False)
+                price_range = (
+                    f"₹{diagnosis_obj.estimated_cost_min:,.0f} - ₹{diagnosis_obj.estimated_cost_max:,.0f}"
+                    if diagnosis_obj.estimated_cost_min != diagnosis_obj.estimated_cost_max
+                    else f"₹{diagnosis_obj.estimated_cost_min:,.0f}"
+                )
                 mechanic_reply = (
                     f"I have finalized the comprehensive diagnostic inspection for your {vehicle_str or 'vehicle'}: "
                     f"**{diagnosis_obj.primary_issue}** (Urgency: {diagnosis_obj.get_severity_display()}). "
-                    f"All standard on-site repair packages are covered under our flat rate of **₹2,499**. "
+                    f"Estimated repair & service range: **{price_range}**. "
                     f"Review the full report card below and click 'Book Mechanic' to lock in an on-site service appointment."
                 )
 
@@ -214,10 +257,15 @@ class ChatView(APIView):
                 diagnosis_obj.ai_generated = False
                 diagnosis_obj.save()
 
+                price_range = (
+                    f"₹{diagnosis_obj.estimated_cost_min:,.0f} - ₹{diagnosis_obj.estimated_cost_max:,.0f}"
+                    if diagnosis_obj.estimated_cost_min != diagnosis_obj.estimated_cost_max
+                    else f"₹{diagnosis_obj.estimated_cost_min:,.0f}"
+                )
                 mechanic_reply = (
                     f"Understood! Shifting diagnostic focus to your **{diagnosis_obj.primary_issue}**:\n\n"
                     f"{new_rule_match['summary']}\n\n"
-                    f"Our certified mobile mechanics handle this complete diagnostic and repair package for our standard flat rate of **₹2,499**. "
+                    f"Our certified mobile mechanics handle this complete diagnostic and repair package for an estimated **{price_range}**. "
                     f"Review the updated diagnostic card below or book an on-site service appointment!"
                 )
                 ai_invoked = False
@@ -225,6 +273,11 @@ class ChatView(APIView):
 
             # 2. Driving safety inquiry
             elif any(s in clean_msg for s in ['safe to drive', 'drive safely', 'can i drive', 'can it drive', 'safe to continue', 'dangerous']):
+                price_range = (
+                    f"₹{diagnosis_obj.estimated_cost_min:,.0f} - ₹{diagnosis_obj.estimated_cost_max:,.0f}"
+                    if diagnosis_obj.estimated_cost_min != diagnosis_obj.estimated_cost_max
+                    else f"₹{diagnosis_obj.estimated_cost_min:,.0f}"
+                )
                 if diagnosis_obj.severity == 'critical':
                     mechanic_reply = (
                         f"⚠️ **Critical Safety Warning**: No, it is **not safe to drive** with **{diagnosis_obj.primary_issue}**. "
@@ -236,13 +289,18 @@ class ChatView(APIView):
                         f"**Driving Safety Assessment**: For **{diagnosis_obj.primary_issue}**, you may cautiously drive short distances "
                         f"(e.g., straight to a repair facility or home), but avoid highway speeds or heavy acceleration. "
                         f"If you notice warning lights flashing or sudden loss of response, pull over immediately. "
-                        f"You can book our certified technician for our standard ₹2,499 flat package below."
+                        f"You can book our certified technician for an estimated **{price_range}** below."
                     )
                 ai_invoked = False
                 quick_replies = ["Book Certified Mechanic", "What tools do I need?", "Ask about another symptom"]
 
             # 3. Tools / Equipment inquiry
             elif any(t in clean_msg for t in ['what tools', 'tools do i need', 'tools required', 'which tools', 'equipment', 'what tools are needed']):
+                price_range = (
+                    f"₹{diagnosis_obj.estimated_cost_min:,.0f} - ₹{diagnosis_obj.estimated_cost_max:,.0f}"
+                    if diagnosis_obj.estimated_cost_min != diagnosis_obj.estimated_cost_max
+                    else f"₹{diagnosis_obj.estimated_cost_min:,.0f}"
+                )
                 issue_lower = diagnosis_obj.primary_issue.lower()
                 if 'battery' in issue_lower:
                     mechanic_reply = (
@@ -252,7 +310,7 @@ class ChatView(APIView):
                         "3. **Digital Multimeter** (DC 20V setting; fully charged resting battery should read ≥ 12.6V)\n"
                         "4. **Nitrile mechanic gloves & eye protection** (to safeguard against sulfuric acid)\n"
                         "5. **Heavy-duty booster cables or jump pack**\n\n"
-                        "If you prefer an expert to handle it with full diagnostic instruments, our certified mobile technician arrives on-site for our flat ₹2,499 rate."
+                        f"If you prefer an expert to handle it with full diagnostic instruments, our mobile technician arrives on-site for an estimated {price_range}."
                     )
                 elif 'carburetor' in issue_lower or 'carburetor' in clean_msg or 'carb' in clean_msg:
                     mechanic_reply = (
@@ -262,7 +320,7 @@ class ChatView(APIView):
                         "3. **Can of compressed air or fine jet cleaning wire (.015\")** (to clear clogged brass orifices)\n"
                         "4. **Replacement bowl gasket and float needle valve**\n"
                         "5. **Clean lint-free shop towels & fuel catch container**\n\n"
-                        "Our mobile technicians can also perform a complete ultrasonic clean and tune for our standard ₹2,499 flat package."
+                        f"Our mobile technicians can also perform a complete ultrasonic clean and tune on-site for an estimated {price_range}."
                     )
                 elif 'brake' in issue_lower:
                     mechanic_reply = (
@@ -272,7 +330,7 @@ class ChatView(APIView):
                         "3. **14mm / 17mm combination wrenches or ratchet sockets** (for caliper slide pin bolts)\n"
                         "4. **C-clamp or disc brake piston compressor** (to retract caliper piston)\n"
                         "5. **Aerosol brake parts cleaner, wire brush, and synthetic brake grease**\n\n"
-                        "Our mobile technicians arrive on-site with all professional brake tools for our flat ₹2,499 rate."
+                        f"Our mobile technicians arrive on-site with all professional brake tools for an estimated {price_range}."
                     )
                 else:
                     mechanic_reply = (
@@ -281,13 +339,18 @@ class ChatView(APIView):
                         "2. **OBD-II live data scanner** (to clear and verify trouble codes)\n"
                         "3. **Floor jack, jack stands, and wheel chocks**\n"
                         "4. **Protective safety glasses and mechanic gloves**\n\n"
-                        "Our certified mobile mechanics bring all specialized diagnostic tools directly to your driveway for our standard ₹2,499 package."
+                        f"Our certified mobile mechanics bring all specialized diagnostic tools directly to your driveway for an estimated {price_range}."
                     )
                 ai_invoked = False
                 quick_replies = ["Book Certified Mechanic", "Can I drive it safely?", "Ask another question"]
 
             # 4. DIY / "How to fix" procedure
             elif any(h in clean_msg for h in ['how to fix', 'how do i fix', 'how to repair', 'diy steps', 'steps to fix', 'can i fix it']):
+                price_range = (
+                    f"₹{diagnosis_obj.estimated_cost_min:,.0f} - ₹{diagnosis_obj.estimated_cost_max:,.0f}"
+                    if diagnosis_obj.estimated_cost_min != diagnosis_obj.estimated_cost_max
+                    else f"₹{diagnosis_obj.estimated_cost_min:,.0f}"
+                )
                 issue_lower = diagnosis_obj.primary_issue.lower()
                 if 'battery' in issue_lower:
                     mechanic_reply = (
@@ -297,7 +360,7 @@ class ChatView(APIView):
                         "3. **Clean Corrosion**: Scrub posts and cable clamps with baking soda solution and a wire brush until bright metal is exposed.\n"
                         "4. **Check Voltage**: Measure with a multimeter. If below 12.2V, charge the battery or attempt a jump start.\n"
                         "5. **Reconnect & Tighten**: Connect positive (+) first, then negative (-). Coat with dielectric grease to prevent future corrosion.\n\n"
-                        "Need a certified technician to test your charging system on-site? Book our flat ₹2,499 package below."
+                        f"Need a certified technician to test your charging system on-site? Book an appointment for an estimated {price_range}."
                     )
                 elif 'carburetor' in issue_lower or 'carb' in clean_msg or 'carburetor' in clean_msg or 'carebeaurator' in clean_msg:
                     mechanic_reply = (
@@ -306,7 +369,7 @@ class ChatView(APIView):
                         "2. **Clean Throat & Jets**: Spray carburetor cleaner into the throat while cranking, and clear the idle air bleed holes.\n"
                         "3. **Float & Needle**: If fuel overflows, the float needle is stuck. Drop the float bowl, clean the needle seat, and check float height.\n"
                         "4. **Tune Mixture Screws**: Gently seat the idle mixture screw, then back it out 1.5 to 2 full turns to factory baseline, fine-tuning for smoothest idle.\n\n"
-                        "Our certified mechanics can also rebuild and tune it at your location for our standard flat ₹2,499 package."
+                        f"Our certified mechanics can also rebuild and tune it at your location (Estimated: {price_range})."
                     )
                 elif 'brake' in issue_lower:
                     mechanic_reply = (
@@ -316,7 +379,7 @@ class ChatView(APIView):
                         "3. **Replace Pads**: Slide out old worn pads, lubricate slide pins with silicone brake grease, and compress caliper piston.\n"
                         "4. **Inspect Rotors**: Check rotor surface for deep scoring or grooves. Resurface or replace if below discard thickness.\n"
                         "5. **Pump Pedal**: Before driving, pump the brake pedal 4-5 times to reseat the pads against the rotor.\n\n"
-                        "Our mobile mechanics can replace your brake pads at your doorstep for our flat ₹2,499 rate."
+                        f"Our mobile mechanics can replace your brake pads at your doorstep (Estimated: {price_range})."
                     )
                 else:
                     mechanic_reply = (
@@ -324,29 +387,37 @@ class ChatView(APIView):
                         f"1. **Inspection**: Perform diagnostic checks on {', '.join(diagnosis_obj.symptoms[:2]) if diagnosis_obj.symptoms else 'the reported symptoms'}.\n"
                         f"2. **Component Service**: Follow recommended repairs: {', '.join(diagnosis_obj.recommended_repairs[:2]) if diagnosis_obj.recommended_repairs else 'inspect primary components'}.\n"
                         f"3. **Verification**: Clear any fault codes and test drive to ensure normal operation.\n\n"
-                        f"You can also book an on-site master mechanic for our standard ₹2,499 package."
+                        f"You can also book an on-site master mechanic for an estimated {price_range}."
                     )
                 ai_invoked = False
                 quick_replies = ["Book Certified Mechanic", "What tools do I need?", "Can I drive it safely?"]
 
             # 5. Pricing or booking question
             elif any(b in clean_msg for b in ['book', 'schedule', 'price', 'cost', 'rate', 'how much', 'appointment', 'fee']):
+                price_range = (
+                    f"₹{diagnosis_obj.estimated_cost_min:,.0f} - ₹{diagnosis_obj.estimated_cost_max:,.0f}"
+                    if diagnosis_obj.estimated_cost_min != diagnosis_obj.estimated_cost_max
+                    else f"₹{diagnosis_obj.estimated_cost_min:,.0f}"
+                )
                 mechanic_reply = (
-                    f"All certified mobile mechanic services for **{diagnosis_obj.primary_issue}** are covered under our transparent "
-                    f"flat rate of **₹2,499** (includes complete on-site inspection, diagnostics, and standard labor). "
+                    f"Certified mobile mechanic services for **{diagnosis_obj.primary_issue}** are estimated between "
+                    f"**{price_range}** (includes complete on-site inspection, diagnostics, and standard labor). "
                     f"Click **'Book Certified Mechanic'** below to choose your preferred date, time, and service location!"
                 )
                 ai_invoked = False
                 quick_replies = ["Book Certified Mechanic", "What tools do I need?", "Can I drive it safely?"]
 
-            # 6. Fallback general technician prompt
+            # 6. Dynamic Senior Technician Response via Gemini 2.5 Flash
             else:
-                mechanic_reply = (
-                    f"Regarding your vehicle and the **{diagnosis_obj.primary_issue}** diagnosis: "
-                    f"Would you like me to walk through the DIY repair steps, review the tools you'll need, "
-                    f"check driving safety, or schedule a certified mobile mechanic for our flat ₹2,499 service?"
+                vehicle_str = f"{session.car_year or ''} {session.car_make or ''} {session.car_model or ''}".strip()
+                conv_history = [{'sender': m.sender, 'text': m.content} for m in session.messages.all()]
+                mechanic_reply = GeminiDiagnosticService.answer_automotive_question(
+                    user_query=user_text,
+                    vehicle_info=vehicle_str,
+                    current_diagnosis_title=diagnosis_obj.primary_issue,
+                    conversation_history=conv_history
                 )
-                ai_invoked = False
+                ai_invoked = True
                 quick_replies = ["Book Certified Mechanic", "What tools do I need?", "Can I drive it safely?"]
 
         ChatMessage.objects.create(
@@ -467,9 +538,8 @@ class DiagnosisView(APIView):
         diagnosis = getattr(session, 'diagnosis', None)
 
         if not diagnosis:
-            # Force generate diagnosis from existing messages
-            all_text = " ".join([m.content for m in session.messages.all()])
-            matched_rule = RuleDiagnosisEngine.match_rule(all_text)
+            user_text_corpus = " ".join([m.content for m in session.messages.filter(sender='user')])
+            matched_rule = RuleDiagnosisEngine.match_rule(user_text_corpus)
 
             if matched_rule:
                 diagnosis = Diagnosis.objects.create(
@@ -502,8 +572,8 @@ class DiagnosisView(APIView):
                     symptoms=ai_diag.get('symptoms', []),
                     possible_causes=ai_diag.get('possible_causes', []),
                     recommended_repairs=ai_diag.get('recommended_repairs', []),
-                    estimated_cost_min=ai_diag.get('cost_min', Decimal('2499.00')),
-                    estimated_cost_max=ai_diag.get('cost_max', Decimal('2499.00')),
+                    estimated_cost_min=ai_diag.get('cost_min', Decimal('1499.00')),
+                    estimated_cost_max=ai_diag.get('cost_max', Decimal('3899.00')),
                     diy_friendly=ai_diag.get('diy_friendly', False),
                     summary_notes=ai_diag.get('summary', ''),
                     ai_generated=ai_diag.get('ai_generated', True)
@@ -595,6 +665,35 @@ class SessionHistoryView(APIView):
     def get(self, request, session_id):
         session = get_object_or_404(ChatSession, id=session_id)
         return Response(ChatSessionSerializer(session, context={'request': request}).data)
+
+
+class ChatSessionsListView(APIView):
+    """
+    GET /api/chat/sessions/
+    Returns recent chat sessions with vehicle info, diagnosis summary, and message count.
+    """
+    def get(self, request):
+        client_id = request.query_params.get('client_id') or request.headers.get('X-Client-ID', '')
+        if client_id:
+            sessions = ChatSession.objects.filter(client_id=client_id).order_by('-created_at')[:30]
+        else:
+            # User privacy isolation: do not return any other users' chat sessions
+            sessions = ChatSession.objects.none()
+        data = []
+        for s in sessions:
+            first_user_msg = s.messages.filter(sender='user').first()
+            diag = getattr(s, 'diagnosis', None)
+            data.append({
+                'id': str(s.id),
+                'vehicle': f"{s.car_year or ''} {s.car_make or ''} {s.car_model or ''}".strip() or "Vehicle Inquiry",
+                'stage': s.stage,
+                'created_at': s.created_at.isoformat() if s.created_at else None,
+                'message_count': s.messages.count(),
+                'primary_issue': diag.primary_issue if diag else None,
+                'severity': diag.severity if diag else None,
+                'preview': (first_user_msg.content[:75] + '...') if (first_user_msg and len(first_user_msg.content) > 75) else (first_user_msg.content if first_user_msg else 'Diagnostic conversation'),
+            })
+        return Response({'sessions': data})
 
 
 class HealthCheckView(APIView):

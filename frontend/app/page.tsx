@@ -28,6 +28,12 @@ export default function HomePage() {
   });
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedId = localStorage.getItem('instant_mechanic_session_id');
+      if (storedId) {
+        setSessionId(storedId);
+      }
+    }
     // Check backend health on mount
     checkBackendHealth().then((health) => {
       setBackendHealth(health);
@@ -40,8 +46,19 @@ export default function HomePage() {
   };
 
   const handleNewSession = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('instant_mechanic_session_id');
+    }
     setSessionId(null);
     setActiveDiagnosis(null);
+    window.location.reload();
+  };
+
+  const handleSelectSession = (id: string) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('instant_mechanic_session_id', id);
+    }
+    setSessionId(id);
     window.location.reload();
   };
 
@@ -158,6 +175,7 @@ export default function HomePage() {
         isOpen={isHistoryOpen}
         onClose={() => setIsHistoryOpen(false)}
         onNewSession={handleNewSession}
+        onSelectSession={handleSelectSession}
         currentSessionId={sessionId}
       />
 

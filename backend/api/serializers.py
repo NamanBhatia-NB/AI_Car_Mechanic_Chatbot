@@ -64,23 +64,44 @@ class BookingSerializer(serializers.ModelSerializer):
 
 
 class ChatSessionSerializer(serializers.ModelSerializer):
-    messages = ChatMessageSerializer(many=True, read_only=True)
+    messages = serializers.SerializerMethodField()
     media_attachments = MediaAttachmentSerializer(many=True, read_only=True)
     diagnosis = DiagnosisSerializer(read_only=True)
 
     class Meta:
         model = ChatSession
         fields = [
-            'id', 'car_make', 'car_model', 'car_year', 'mileage',
+            'id', 'client_id', 'car_make', 'car_model', 'car_year', 'mileage',
             'stage', 'created_at', 'updated_at', 'messages',
             'media_attachments', 'diagnosis'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
+    def get_messages(self, obj):
+        msgs = list(obj.messages.all().order_by('created_at'))
+        has_welcome = any(m.sender == 'mechanic' and "Marcus Vance" in m.content for m in msgs)
+        serialized = ChatMessageSerializer(msgs, many=True, context=self.context).data
+        if not has_welcome:
+            welcome_msg = {
+                'id': f"welcome-{obj.id}",
+                'session': str(obj.id),
+                'sender': 'mechanic',
+                'content': (
+                    "Hey friend, I'm Marcus Vance, Senior Automotive Diagnostic Technician with 25+ years in the bay. "
+                    "I'm here to help you troubleshoot strange noises, warning lights, fluid leaks, or starting issues. "
+                    "What vehicle are you driving, and what's going on under the hood?"
+                ),
+                'ai_invoked': False,
+                'created_at': obj.created_at.isoformat() if obj.created_at else None,
+            }
+            return [welcome_msg] + serialized
+        return serialized
+
 
 # Input serializers for clean validation and Swagger OpenAPI docs
 class ChatRequestSerializer(serializers.Serializer):
-    session_id = serializers.UUIDField(required=False, default=None)
+    session_id = serializers.UUIDField(required=False, allow_null=True, default=None)
+    client_id = serializers.CharField(required=False, allow_blank=True, default='')
     message = serializers.CharField(required=True, allow_blank=False)
     media_ids = serializers.ListField(
         child=serializers.IntegerField(),
@@ -102,7 +123,7 @@ class ChatResponseSerializer(serializers.Serializer):
 
 
 class MediaUploadSerializer(serializers.Serializer):
-    session_id = serializers.UUIDField(required=False, default=None)
+    session_id = serializers.UUIDField(required=False, allow_null=True, default=None)
     file = serializers.FileField(required=True)
 
 
