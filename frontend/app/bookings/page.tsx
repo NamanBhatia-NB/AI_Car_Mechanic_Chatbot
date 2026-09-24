@@ -122,29 +122,6 @@ export default function BookingsPage() {
             Customer service dispatch records & administrative management.
           </p>
         </div>
-
-        {/* Admin Portal Button */}
-        <a
-          href="http://127.0.0.1:8000/admin/api/booking/"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: 'rgba(245, 158, 11, 0.12)',
-            border: '1px solid rgba(245, 158, 11, 0.35)',
-            color: 'var(--amber-primary)',
-            padding: '8px 16px',
-            borderRadius: '10px',
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            textDecoration: 'none',
-            marginTop: '8px'
-          }}
-        >
-          <ShieldCheck size={16} /> Open Django Admin Dashboard <ExternalLink size={14} />
-        </a>
       </div>
 
       {/* Search Bar */}

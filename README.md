@@ -78,7 +78,7 @@ Interactive OpenAPI documentation is available live at `http://localhost:8000/ap
 ### 1. Backend Setup
 ```bash
 # Clone the repository
-git clone <repo-url>
+git clone https://github.com/NamanBhatia-NB/AI_Car_Mechanic_Chatbot
 cd "Instant Mechanic"
 
 # Setup virtual environment
