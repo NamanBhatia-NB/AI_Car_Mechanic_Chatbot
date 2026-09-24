@@ -181,8 +181,8 @@ class ChatView(APIView):
                     symptoms=ai_diag.get('symptoms', []),
                     possible_causes=ai_diag.get('possible_causes', []),
                     recommended_repairs=ai_diag.get('recommended_repairs', []),
-                    estimated_cost_min=ai_diag.get('cost_min', 100),
-                    estimated_cost_max=ai_diag.get('cost_max', 350),
+                    estimated_cost_min=ai_diag.get('cost_min', Decimal('2499.00')),
+                    estimated_cost_max=ai_diag.get('cost_max', Decimal('2499.00')),
                     diy_friendly=ai_diag.get('diy_friendly', False),
                     summary_notes=ai_diag.get('summary', ''),
                     ai_generated=ai_diag.get('ai_generated', True)
@@ -191,14 +191,163 @@ class ChatView(APIView):
                 mechanic_reply = (
                     f"I have finalized the comprehensive diagnostic inspection for your {vehicle_str or 'vehicle'}: "
                     f"**{diagnosis_obj.primary_issue}** (Urgency: {diagnosis_obj.get_severity_display()}). "
+                    f"All standard on-site repair packages are covered under our flat rate of **₹2,499**. "
                     f"Review the full report card below and click 'Book Mechanic' to lock in an on-site service appointment."
                 )
 
         else:
-            mechanic_reply = (
-                f"We previously diagnosed your vehicle with **{diagnosis_obj.primary_issue}**. "
-                f"Would you like to proceed with booking a certified technician, or do you have further questions?"
-            )
+            clean_msg = user_text.lower()
+            new_rule_match = RuleDiagnosisEngine.match_rule(user_text)
+
+            # 1. User reports a new mechanical fault or asks about another component (e.g. carburetor, brakes)
+            if new_rule_match and new_rule_match['primary_issue'] != diagnosis_obj.primary_issue:
+                diagnosis_obj.primary_issue = new_rule_match['primary_issue']
+                diagnosis_obj.severity = new_rule_match['severity']
+                diagnosis_obj.confidence_score = new_rule_match['confidence_score']
+                diagnosis_obj.symptoms = new_rule_match['symptoms']
+                diagnosis_obj.possible_causes = new_rule_match['possible_causes']
+                diagnosis_obj.recommended_repairs = new_rule_match['recommended_repairs']
+                diagnosis_obj.estimated_cost_min = new_rule_match['cost_min']
+                diagnosis_obj.estimated_cost_max = new_rule_match['cost_max']
+                diagnosis_obj.diy_friendly = new_rule_match['diy_friendly']
+                diagnosis_obj.summary_notes = new_rule_match['summary']
+                diagnosis_obj.ai_generated = False
+                diagnosis_obj.save()
+
+                mechanic_reply = (
+                    f"Understood! Shifting diagnostic focus to your **{diagnosis_obj.primary_issue}**:\n\n"
+                    f"{new_rule_match['summary']}\n\n"
+                    f"Our certified mobile mechanics handle this complete diagnostic and repair package for our standard flat rate of **₹2,499**. "
+                    f"Review the updated diagnostic card below or book an on-site service appointment!"
+                )
+                ai_invoked = False
+                quick_replies = ["Book Certified Mechanic", "What tools do I need?", "Can I drive it safely?"]
+
+            # 2. Driving safety inquiry
+            elif any(s in clean_msg for s in ['safe to drive', 'drive safely', 'can i drive', 'can it drive', 'safe to continue', 'dangerous']):
+                if diagnosis_obj.severity == 'critical':
+                    mechanic_reply = (
+                        f"⚠️ **Critical Safety Warning**: No, it is **not safe to drive** with **{diagnosis_obj.primary_issue}**. "
+                        f"Continuing to run the vehicle risks catastrophic engine damage or complete loss of braking/steering control. "
+                        f"Pull over safely and book our mobile mechanic or have the vehicle towed to a garage."
+                    )
+                else:
+                    mechanic_reply = (
+                        f"**Driving Safety Assessment**: For **{diagnosis_obj.primary_issue}**, you may cautiously drive short distances "
+                        f"(e.g., straight to a repair facility or home), but avoid highway speeds or heavy acceleration. "
+                        f"If you notice warning lights flashing or sudden loss of response, pull over immediately. "
+                        f"You can book our certified technician for our standard ₹2,499 flat package below."
+                    )
+                ai_invoked = False
+                quick_replies = ["Book Certified Mechanic", "What tools do I need?", "Ask about another symptom"]
+
+            # 3. Tools / Equipment inquiry
+            elif any(t in clean_msg for t in ['what tools', 'tools do i need', 'tools required', 'which tools', 'equipment', 'what tools are needed']):
+                issue_lower = diagnosis_obj.primary_issue.lower()
+                if 'battery' in issue_lower:
+                    mechanic_reply = (
+                        "For inspecting and servicing the battery/starter connections on your vehicle, you will need:\n"
+                        "1. **10mm and 8mm socket/box wrenches** (for terminal clamp bolts and battery hold-down)\n"
+                        "2. **Wire terminal cleaner brush & baking soda water** (to dissolve acidic corrosion crust)\n"
+                        "3. **Digital Multimeter** (DC 20V setting; fully charged resting battery should read ≥ 12.6V)\n"
+                        "4. **Nitrile mechanic gloves & eye protection** (to safeguard against sulfuric acid)\n"
+                        "5. **Heavy-duty booster cables or jump pack**\n\n"
+                        "If you prefer an expert to handle it with full diagnostic instruments, our certified mobile technician arrives on-site for our flat ₹2,499 rate."
+                    )
+                elif 'carburetor' in issue_lower or 'carburetor' in clean_msg or 'carb' in clean_msg:
+                    mechanic_reply = (
+                        "For inspecting and servicing the carburetor, you will need:\n"
+                        "1. **Flathead & Phillips screwdrivers** (for idle mixture, throttle stop screws, and bowl fasteners)\n"
+                        "2. **Aerosol Carburetor & Choke Cleaner** (to dissolve fuel varnish and carbon deposits)\n"
+                        "3. **Can of compressed air or fine jet cleaning wire (.015\")** (to clear clogged brass orifices)\n"
+                        "4. **Replacement bowl gasket and float needle valve**\n"
+                        "5. **Clean lint-free shop towels & fuel catch container**\n\n"
+                        "Our mobile technicians can also perform a complete ultrasonic clean and tune for our standard ₹2,499 flat package."
+                    )
+                elif 'brake' in issue_lower:
+                    mechanic_reply = (
+                        "For servicing the brake pads and rotors, you will need:\n"
+                        "1. **Hydraulic floor jack and two rated jack stands** (never work under a car supported solely by a jack)\n"
+                        "2. **Lug wrench / breaker bar & socket** (19mm or 21mm for wheel lugs)\n"
+                        "3. **14mm / 17mm combination wrenches or ratchet sockets** (for caliper slide pin bolts)\n"
+                        "4. **C-clamp or disc brake piston compressor** (to retract caliper piston)\n"
+                        "5. **Aerosol brake parts cleaner, wire brush, and synthetic brake grease**\n\n"
+                        "Our mobile technicians arrive on-site with all professional brake tools for our flat ₹2,499 rate."
+                    )
+                else:
+                    mechanic_reply = (
+                        f"For addressing **{diagnosis_obj.primary_issue}**, standard garage tools required include:\n"
+                        "1. **Complete metric socket set (8mm - 19mm) and ratchet extensions**\n"
+                        "2. **OBD-II live data scanner** (to clear and verify trouble codes)\n"
+                        "3. **Floor jack, jack stands, and wheel chocks**\n"
+                        "4. **Protective safety glasses and mechanic gloves**\n\n"
+                        "Our certified mobile mechanics bring all specialized diagnostic tools directly to your driveway for our standard ₹2,499 package."
+                    )
+                ai_invoked = False
+                quick_replies = ["Book Certified Mechanic", "Can I drive it safely?", "Ask another question"]
+
+            # 4. DIY / "How to fix" procedure
+            elif any(h in clean_msg for h in ['how to fix', 'how do i fix', 'how to repair', 'diy steps', 'steps to fix', 'can i fix it']):
+                issue_lower = diagnosis_obj.primary_issue.lower()
+                if 'battery' in issue_lower:
+                    mechanic_reply = (
+                        "Here is the senior technician step-by-step procedure to fix battery/starter issues:\n"
+                        "1. **Safety First**: Turn off ignition and remove keys. Put on safety glasses and gloves.\n"
+                        "2. **Disconnect Terminals**: Loosen the negative (-) black cable first, then positive (+) red cable.\n"
+                        "3. **Clean Corrosion**: Scrub posts and cable clamps with baking soda solution and a wire brush until bright metal is exposed.\n"
+                        "4. **Check Voltage**: Measure with a multimeter. If below 12.2V, charge the battery or attempt a jump start.\n"
+                        "5. **Reconnect & Tighten**: Connect positive (+) first, then negative (-). Coat with dielectric grease to prevent future corrosion.\n\n"
+                        "Need a certified technician to test your charging system on-site? Book our flat ₹2,499 package below."
+                    )
+                elif 'carburetor' in issue_lower or 'carb' in clean_msg or 'carburetor' in clean_msg or 'carebeaurator' in clean_msg:
+                    mechanic_reply = (
+                        "Here is the senior technician step-by-step procedure to service and tune a carburetor:\n"
+                        "1. **Inspect Fuel Delivery**: Remove the air filter assembly. Verify fuel is reaching the bowl and the choke plate moves freely.\n"
+                        "2. **Clean Throat & Jets**: Spray carburetor cleaner into the throat while cranking, and clear the idle air bleed holes.\n"
+                        "3. **Float & Needle**: If fuel overflows, the float needle is stuck. Drop the float bowl, clean the needle seat, and check float height.\n"
+                        "4. **Tune Mixture Screws**: Gently seat the idle mixture screw, then back it out 1.5 to 2 full turns to factory baseline, fine-tuning for smoothest idle.\n\n"
+                        "Our certified mechanics can also rebuild and tune it at your location for our standard flat ₹2,499 package."
+                    )
+                elif 'brake' in issue_lower:
+                    mechanic_reply = (
+                        "Here is the technician procedure for brake service:\n"
+                        "1. **Lift & Secure**: Loosen lug nuts, jack up the vehicle, and rest securely on jack stands.\n"
+                        "2. **Remove Caliper**: Unbolt caliper slide pins and suspend the caliper with a wire hook (never hang by rubber hose).\n"
+                        "3. **Replace Pads**: Slide out old worn pads, lubricate slide pins with silicone brake grease, and compress caliper piston.\n"
+                        "4. **Inspect Rotors**: Check rotor surface for deep scoring or grooves. Resurface or replace if below discard thickness.\n"
+                        "5. **Pump Pedal**: Before driving, pump the brake pedal 4-5 times to reseat the pads against the rotor.\n\n"
+                        "Our mobile mechanics can replace your brake pads at your doorstep for our flat ₹2,499 rate."
+                    )
+                else:
+                    mechanic_reply = (
+                        f"Here is the technician roadmap to address **{diagnosis_obj.primary_issue}**:\n"
+                        f"1. **Inspection**: Perform diagnostic checks on {', '.join(diagnosis_obj.symptoms[:2]) if diagnosis_obj.symptoms else 'the reported symptoms'}.\n"
+                        f"2. **Component Service**: Follow recommended repairs: {', '.join(diagnosis_obj.recommended_repairs[:2]) if diagnosis_obj.recommended_repairs else 'inspect primary components'}.\n"
+                        f"3. **Verification**: Clear any fault codes and test drive to ensure normal operation.\n\n"
+                        f"You can also book an on-site master mechanic for our standard ₹2,499 package."
+                    )
+                ai_invoked = False
+                quick_replies = ["Book Certified Mechanic", "What tools do I need?", "Can I drive it safely?"]
+
+            # 5. Pricing or booking question
+            elif any(b in clean_msg for b in ['book', 'schedule', 'price', 'cost', 'rate', 'how much', 'appointment', 'fee']):
+                mechanic_reply = (
+                    f"All certified mobile mechanic services for **{diagnosis_obj.primary_issue}** are covered under our transparent "
+                    f"flat rate of **₹2,499** (includes complete on-site inspection, diagnostics, and standard labor). "
+                    f"Click **'Book Certified Mechanic'** below to choose your preferred date, time, and service location!"
+                )
+                ai_invoked = False
+                quick_replies = ["Book Certified Mechanic", "What tools do I need?", "Can I drive it safely?"]
+
+            # 6. Fallback general technician prompt
+            else:
+                mechanic_reply = (
+                    f"Regarding your vehicle and the **{diagnosis_obj.primary_issue}** diagnosis: "
+                    f"Would you like me to walk through the DIY repair steps, review the tools you'll need, "
+                    f"check driving safety, or schedule a certified mobile mechanic for our flat ₹2,499 service?"
+                )
+                ai_invoked = False
+                quick_replies = ["Book Certified Mechanic", "What tools do I need?", "Can I drive it safely?"]
 
         ChatMessage.objects.create(
             session=session,
@@ -353,8 +502,8 @@ class DiagnosisView(APIView):
                     symptoms=ai_diag.get('symptoms', []),
                     possible_causes=ai_diag.get('possible_causes', []),
                     recommended_repairs=ai_diag.get('recommended_repairs', []),
-                    estimated_cost_min=ai_diag.get('cost_min', 100),
-                    estimated_cost_max=ai_diag.get('cost_max', 350),
+                    estimated_cost_min=ai_diag.get('cost_min', Decimal('2499.00')),
+                    estimated_cost_max=ai_diag.get('cost_max', Decimal('2499.00')),
                     diy_friendly=ai_diag.get('diy_friendly', False),
                     summary_notes=ai_diag.get('summary', ''),
                     ai_generated=ai_diag.get('ai_generated', True)

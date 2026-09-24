@@ -4,7 +4,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Wrench,
-  DollarSign,
+  IndianRupee,
   Calendar,
   ShieldAlert,
   ChevronRight,
@@ -122,15 +122,16 @@ export const DiagnosisCard: React.FC<DiagnosisCardProps> = ({ diagnosis, onBookC
               justifyContent: 'center',
               color: 'var(--amber-primary)'
             }}
-          >
-            <DollarSign size={20} />
+            <IndianRupee size={20} />
           </div>
           <div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>
-              Estimated Repair
+              Standard Service Rate
             </div>
             <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#f8fafc' }}>
-              ${minCost.toFixed(0)} – ${maxCost.toFixed(0)}
+              {minCost === maxCost
+                ? `₹${minCost.toLocaleString('en-IN')}`
+                : `₹${minCost.toLocaleString('en-IN')} – ₹${maxCost.toLocaleString('en-IN')}`}
             </div>
           </div>
         </div>

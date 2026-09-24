@@ -224,7 +224,9 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 Schedule Certified Mechanic
               </h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '2px' }}>
-                Diagnosis: <strong style={{ color: '#f8fafc' }}>{diagnosis.primary_issue}</strong> (Est. ${Number(diagnosis.estimated_cost_min).toFixed(0)} - ${Number(diagnosis.estimated_cost_max).toFixed(0)})
+                Diagnosis: <strong style={{ color: '#f8fafc' }}>{diagnosis.primary_issue}</strong> (Rate: {Number(diagnosis.estimated_cost_min) === Number(diagnosis.estimated_cost_max)
+                  ? `₹${Number(diagnosis.estimated_cost_min).toLocaleString('en-IN')}`
+                  : `₹${Number(diagnosis.estimated_cost_min).toLocaleString('en-IN')} - ₹${Number(diagnosis.estimated_cost_max).toLocaleString('en-IN')}`})
               </p>
             </div>
 

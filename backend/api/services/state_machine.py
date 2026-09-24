@@ -92,6 +92,10 @@ class DiagnosticStateMachine:
         # Update session with any vehicle info mentioned
         cls.update_session_vehicle(session, user_message)
 
+        # If already diagnosed, remain in diagnosed stage for follow-ups and service inquiries
+        if session.stage == 'diagnosed' or getattr(session, 'diagnosis', None) is not None:
+            return True, None, ["Book Certified Mechanic", "What tools do I need?", "Can I drive it safely?"]
+
         # Explicit user request for diagnosis or booking overrides
         if any(trigger in text for trigger in ['give me diagnosis', 'diagnose now', 'what is the issue', 'what is wrong', 'book mechanic', 'give me the report']):
             session.stage = 'diagnosed'

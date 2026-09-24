@@ -118,11 +118,12 @@ class GeminiDiagnosticService:
                 'Accessory drive belt tensioner bearing fatigue'
             ],
             'recommended_repairs': [
-                'Comprehensive 50-point mechanical and OBD-II scanner live data inspection ($80 - $140)',
-                'Smoke test intake and vacuum lines ($90 - $150)'
+                'Comprehensive 50-point mechanical and OBD-II scanner live data inspection (Covered under ₹2,499 flat rate)',
+                'Smoke test intake and vacuum lines',
+                'Component testing and clearance verification'
             ],
-            'cost_min': Decimal('90.00'),
-            'cost_max': Decimal('320.00'),
+            'cost_min': Decimal('2499.00'),
+            'cost_max': Decimal('2499.00'),
             'diy_friendly': False,
             'summary': f"Based on the reported symptoms for {vehicle_info or 'your vehicle'}, an on-site technician inspection will pinpoint the exact fault code and mechanical clearance without guess-work.",
             'ai_generated': False
@@ -139,6 +140,7 @@ class GeminiDiagnosticService:
             prompt = f"""
 You are Marcus Vance, a Senior Master Automobile Technician.
 Analyze this diagnostic session and output ONLY valid JSON adhering strictly to the schema below.
+Note: All prices are in Indian Rupees (INR ₹). Use our standard flat service package of ₹2,499 for all repairs.
 
 Vehicle: {vehicle_info}
 Media Summaries: {media_snippet}
@@ -152,9 +154,9 @@ JSON Schema:
     "confidence_score": 0.85,
     "symptoms": ["Symptom 1", "Symptom 2"],
     "possible_causes": ["Cause 1", "Cause 2", "Cause 3"],
-    "recommended_repairs": ["Repair 1 with price range", "Repair 2"],
-    "cost_min": 150.00,
-    "cost_max": 450.00,
+    "recommended_repairs": ["Repair 1 (Covered under ₹2,499 flat rate)", "Repair 2"],
+    "cost_min": 2499.00,
+    "cost_max": 2499.00,
     "diy_friendly": true | false,
     "summary": "2-3 sentences senior technician explanation of what is failing and urgency."
 }}
@@ -173,8 +175,8 @@ JSON Schema:
                         raw_text = "\n".join(lines).strip()
 
                     parsed = json.loads(raw_text)
-                    parsed['cost_min'] = Decimal(str(parsed.get('cost_min', 100)))
-                    parsed['cost_max'] = Decimal(str(parsed.get('cost_max', 350)))
+                    parsed['cost_min'] = Decimal('2499.00')
+                    parsed['cost_max'] = Decimal('2499.00')
                     parsed['ai_generated'] = True
                     return parsed
                 except Exception as inner_e:

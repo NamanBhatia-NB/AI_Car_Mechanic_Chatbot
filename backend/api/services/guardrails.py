@@ -42,7 +42,9 @@ AUTOMOTIVE_KEYWORDS = {
     'braking', 'turning', 'reverse', 'diagnos', 'diagnosis', 'diagnose', 'diagnostic',
     'fix', 'fixed', 'problem', 'issue', 'cost', 'estimate', 'quote', 'report',
     'book', 'booking', 'appointment', 'schedule', 'replace', 'inspect', 'technician',
-    'garage', 'workshop', 'towing', 'tow', 'mile', 'miles', 'km', 'kms'
+    'garage', 'workshop', 'towing', 'tow', 'mile', 'miles', 'km', 'kms',
+    'carburetor', 'carburetors', 'carb', 'carbs', 'carebeaurator', 'carbeaurator', 'choke',
+    'tool', 'tools', 'equipment', 'safe', 'safety', 'danger', 'dangerous'
 }
 
 # Recognized valid slot-filling short answers (when technician asks condition or frequency)

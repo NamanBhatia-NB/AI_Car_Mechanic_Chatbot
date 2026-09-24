@@ -204,7 +204,9 @@ export default function BookingsPage() {
                 {booking.diagnosis_details.primary_issue}
               </div>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                Estimated repair range: ${Number(booking.diagnosis_details.estimated_cost_min).toFixed(0)} - ${Number(booking.diagnosis_details.estimated_cost_max).toFixed(0)}
+                Service rate: {Number(booking.diagnosis_details.estimated_cost_min) === Number(booking.diagnosis_details.estimated_cost_max)
+                  ? `₹${Number(booking.diagnosis_details.estimated_cost_min).toLocaleString('en-IN')} (Flat Service Rate)`
+                  : `₹${Number(booking.diagnosis_details.estimated_cost_min).toLocaleString('en-IN')} - ₹${Number(booking.diagnosis_details.estimated_cost_max).toLocaleString('en-IN')}`}
               </div>
             </div>
           )}
