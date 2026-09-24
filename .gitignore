@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/venv/
+backend/env/
+ENV/
+*.sqlite3
+*.db
+backend/media/uploads/
+backend/staticfiles/
+.env
+
+# Node & Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+.npm
+*.tsbuildinfo
+next-env.d.ts
+
+# Operating Systems & IDEs
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
