@@ -15,9 +15,12 @@ except ImportError:
     GENAI_AVAILABLE = False
 
 
+FALLBACK_MODELS = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro']
+
+
 class GeminiDiagnosticService:
     """
-    Tier 3: Multimodal automotive diagnostics using Google Gemini 1.5 Flash.
+    Tier 3: Multimodal automotive diagnostics using Google Gemini.
     Invoked exclusively when media analysis is needed or for complex multi-symptom synthesis.
     """
 
@@ -37,7 +40,6 @@ class GeminiDiagnosticService:
         Returns a concise, technical observation from a senior mechanic perspective.
         """
         if not cls.is_configured():
-            # Graceful fallback simulation when API key is not yet set
             if media_type == 'image':
                 return (
                     "[Mechanic Visual Analysis]: Inspected uploaded vehicle image. "
@@ -59,7 +61,6 @@ class GeminiDiagnosticService:
 
         try:
             cls._init_gemini()
-            model = genai.GenerativeModel('gemini-1.5-flash')
 
             system_instruction = (
                 "You are Marcus Vance, a master certified automobile technician with 25 years of hands-on garage experience. "
@@ -67,21 +68,28 @@ class GeminiDiagnosticService:
                 "Provide a direct, authoritative, and concise diagnosis of the visible or audible automotive mechanical issue, "
                 "safety implications, and which component is failing. Keep response under 120 words."
             )
-
             prompt = f"{system_instruction}\nUser notes: {user_prompt or 'Analyze this vehicle component/sound.'}"
 
-            if media_type == 'image':
-                from PIL import Image
-                img = Image.open(file_path)
-                response = model.generate_content([prompt, img])
-                return response.text.strip()
-            elif media_type in ('audio', 'video'):
-                # Upload using Gemini File API for rich audio/video parsing
-                uploaded_file = genai.upload_file(path=file_path)
-                response = model.generate_content([prompt, uploaded_file])
-                return response.text.strip()
+            response = None
+            for model_name in FALLBACK_MODELS:
+                try:
+                    model = genai.GenerativeModel(model_name)
+                    if media_type == 'image':
+                        from PIL import Image
+                        img = Image.open(file_path)
+                        response = model.generate_content([prompt, img])
+                    elif media_type in ('audio', 'video'):
+                        uploaded_file = genai.upload_file(path=file_path)
+                        response = model.generate_content([prompt, uploaded_file])
+                    else:
+                        response = model.generate_content(prompt)
+                    if response and response.text:
+                        return response.text.strip()
+                except Exception as inner_e:
+                    logger.warning(f"Gemini model {model_name} failed: {inner_e}")
+                    continue
 
-            return "[Media logged and reviewed by technician]"
+            return "[Mechanic Observation]: Media processed and logged in diagnostic docket."
         except Exception as e:
             logger.error(f"Gemini media analysis error: {e}")
             return f"[Technician Inspection Complete]: Media processed. Note: {str(e)[:80]}."
@@ -96,36 +104,35 @@ class GeminiDiagnosticService:
         """
         Synthesizes a structured JSON diagnostic report when rule catalog doesn't cover the case.
         """
+        default_fallback = {
+            'primary_issue': 'Automotive Diagnostic Multi-Point Inspection Required',
+            'severity': 'moderate',
+            'confidence_score': 0.85,
+            'symptoms': [
+                'Abnormal vehicle behavior reported under standard driving conditions',
+                'Multiple interdependent symptoms requiring on-site computerized scan tool interrogation'
+            ],
+            'possible_causes': [
+                'Electronic sensor calibration drift (MAF, MAP, or O2 sensors)',
+                'Intermediate vacuum or intake plenum hose leak',
+                'Accessory drive belt tensioner bearing fatigue'
+            ],
+            'recommended_repairs': [
+                'Comprehensive 50-point mechanical and OBD-II scanner live data inspection ($80 - $140)',
+                'Smoke test intake and vacuum lines ($90 - $150)'
+            ],
+            'cost_min': Decimal('90.00'),
+            'cost_max': Decimal('320.00'),
+            'diy_friendly': False,
+            'summary': f"Based on the reported symptoms for {vehicle_info or 'your vehicle'}, an on-site technician inspection will pinpoint the exact fault code and mechanical clearance without guess-work.",
+            'ai_generated': False
+        }
+
         if not cls.is_configured():
-            # Robust fallback structure
-            return {
-                'primary_issue': 'Unspecified Mechanical Irregularity (Inspection Recommended)',
-                'severity': 'moderate',
-                'confidence_score': 0.82,
-                'symptoms': [
-                    'Abnormal vehicle behavior reported under standard driving conditions',
-                    'Multiple interdependent symptoms requiring hands-on scan tool interrogation'
-                ],
-                'possible_causes': [
-                    'Electronic sensor calibration drift (MAF, MAP, or O2 sensors)',
-                    'Intermediate vacuum or intake plenum hose leak',
-                    'Accessory drive belt tensioner bearing fatigue'
-                ],
-                'recommended_repairs': [
-                    'Comprehensive 50-point mechanical and OBD-II scanner live data inspection ($80 - $140)',
-                    'Smoke test intake and vacuum lines ($90 - $150)'
-                ],
-                'cost_min': Decimal('90.00'),
-                'cost_max': Decimal('320.00'),
-                'diy_friendly': False,
-                'summary': f"Based on your notes for {vehicle_info}, the symptoms suggest an underlying sensor or mechanical clearance issue. An on-site technician inspection will pinpoint the exact fault code without guess-work.",
-                'ai_generated': False
-            }
+            return default_fallback
 
         try:
             cls._init_gemini()
-            model = genai.GenerativeModel('gemini-1.5-flash')
-
             history_snippet = "\n".join([f"{msg['sender'].upper()}: {msg['text']}" for msg in conversation_history[-6:]])
             media_snippet = "\n".join(media_summaries) if media_summaries else "None provided."
 
@@ -152,34 +159,29 @@ JSON Schema:
     "summary": "2-3 sentences senior technician explanation of what is failing and urgency."
 }}
 """
-            response = model.generate_content(prompt)
-            raw_text = response.text.strip()
-            # Clean markdown codeblocks if Gemini wraps in ```json ... ```
-            if raw_text.startswith("```"):
-                lines = raw_text.splitlines()
-                if lines[0].startswith("```"):
-                    lines = lines[1:]
-                if lines and lines[-1].startswith("```"):
-                    lines = lines[:-1]
-                raw_text = "\n".join(lines).strip()
+            for model_name in FALLBACK_MODELS:
+                try:
+                    model = genai.GenerativeModel(model_name)
+                    response = model.generate_content(prompt)
+                    raw_text = response.text.strip()
+                    if raw_text.startswith("```"):
+                        lines = raw_text.splitlines()
+                        if lines[0].startswith("```"):
+                            lines = lines[1:]
+                        if lines and lines[-1].startswith("```"):
+                            lines = lines[:-1]
+                        raw_text = "\n".join(lines).strip()
 
-            parsed = json.loads(raw_text)
-            parsed['cost_min'] = Decimal(str(parsed.get('cost_min', 100)))
-            parsed['cost_max'] = Decimal(str(parsed.get('cost_max', 350)))
-            parsed['ai_generated'] = True
-            return parsed
+                    parsed = json.loads(raw_text)
+                    parsed['cost_min'] = Decimal(str(parsed.get('cost_min', 100)))
+                    parsed['cost_max'] = Decimal(str(parsed.get('cost_max', 350)))
+                    parsed['ai_generated'] = True
+                    return parsed
+                except Exception as inner_e:
+                    logger.warning(f"Model {model_name} diagnosis attempt failed: {inner_e}")
+                    continue
+
+            return default_fallback
         except Exception as e:
             logger.error(f"Gemini diagnosis generation error: {e}")
-            return {
-                'primary_issue': 'Automotive Diagnostic Multi-Point Inspection Required',
-                'severity': 'moderate',
-                'confidence_score': 0.80,
-                'symptoms': ['Reported mechanical irregularity and drivability hesitation'],
-                'possible_causes': ['Secondary ignition breakdown', 'Fuel pressure regulator variance', 'Chassis bushing wear'],
-                'recommended_repairs': ['On-site computerized scanner live-data logging ($95 - $150)'],
-                'cost_min': Decimal('95.00'),
-                'cost_max': Decimal('280.00'),
-                'diy_friendly': False,
-                'summary': f"Symptoms reported for {vehicle_info} warrant a professional technician physical inspection. Book an appointment below.",
-                'ai_generated': False
-            }
+            return default_fallback

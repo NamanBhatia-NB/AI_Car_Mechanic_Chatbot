@@ -28,6 +28,13 @@ class ChatView(APIView):
     """
     parser_classes = [JSONParser]
 
+    def get(self, request):
+        return Response({
+            'message': 'Instant Mechanic Chat Endpoint. Send a POST request with {"message": "symptom"} to interact with the mechanic.',
+            'method': 'POST',
+            'interactive_docs': request.build_absolute_uri('/api/docs/')
+        })
+
     @extend_schema(
         request=ChatRequestSerializer,
         responses={200: ChatResponseSerializer},
@@ -361,6 +368,13 @@ class BookingView(APIView):
     POST /api/booking/ - Create a certified mechanic appointment.
     GET /api/booking/{id}/ - Retrieve appointment status and assignment.
     """
+    def get(self, request):
+        return Response({
+            'message': 'Instant Mechanic Booking Endpoint. Send a POST request to book a technician, or GET /api/booking/<id_or_ref>/ to track an existing booking.',
+            'method': 'POST',
+            'interactive_docs': request.build_absolute_uri('/api/docs/')
+        })
+
     @extend_schema(
         request=BookingRequestSerializer,
         responses={201: BookingSerializer},
@@ -443,3 +457,30 @@ class HealthCheckView(APIView):
             'version': '1.0.0',
             'gemini_configured': GeminiDiagnosticService.is_configured()
         })
+
+
+class APIRootView(APIView):
+    """
+    GET /api/
+    Interactive API root overview and sitemap.
+    """
+    def get(self, request):
+        base_url = request.build_absolute_uri('/api/')
+        return Response({
+            'service': 'Instant Mechanic AI Diagnostic & Booking REST API',
+            'version': '1.0.0',
+            'status': 'online',
+            'gemini_configured': GeminiDiagnosticService.is_configured(),
+            'documentation_swagger': request.build_absolute_uri('/api/docs/'),
+            'schema_openapi': request.build_absolute_uri('/api/schema/'),
+            'endpoints': {
+                'chat': f'{base_url}chat/',
+                'upload': f'{base_url}upload/',
+                'diagnosis': f'{base_url}diagnosis/',
+                'booking': f'{base_url}booking/',
+                'booking_detail': f'{base_url}booking/<id_or_reference>/',
+                'chat_history': f'{base_url}chat/history/<session_id>/',
+                'health': f'{base_url}health/'
+            }
+        })
+

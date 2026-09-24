@@ -1,10 +1,11 @@
 from django.urls import path
 from .views import (
-    ChatView, MediaUploadView, DiagnosisView,
+    APIRootView, ChatView, MediaUploadView, DiagnosisView,
     BookingView, BookingDetailView, SessionHistoryView, HealthCheckView
 )
 
 urlpatterns = [
+    path('', APIRootView.as_view(), name='api-root'),
     path('chat/', ChatView.as_view(), name='api-chat'),
     path('upload/', MediaUploadView.as_view(), name='api-upload'),
     path('diagnosis/', DiagnosisView.as_view(), name='api-diagnosis'),
@@ -13,3 +14,4 @@ urlpatterns = [
     path('chat/history/<uuid:session_id>/', SessionHistoryView.as_view(), name='api-chat-history'),
     path('health/', HealthCheckView.as_view(), name='api-health'),
 ]
+
