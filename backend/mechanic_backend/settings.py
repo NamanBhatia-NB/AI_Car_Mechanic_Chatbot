@@ -101,6 +101,18 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS configuration
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.vercel\.app$",
+    r"^https://.*\.suga\.run$",
+    r"^http://localhost:[0-9]+$",
+    r"^http://127\.0\.0\.1:[0-9]+$",
+]
+CSRF_TRUSTED_ORIGINS = [
+    'https://*.vercel.app',
+    'https://*.suga.run',
+    'http://localhost:3000',
+    'http://localhost:3050',
+]
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
