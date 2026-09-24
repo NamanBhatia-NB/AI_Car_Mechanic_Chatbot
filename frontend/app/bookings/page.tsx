@@ -11,18 +11,26 @@ import {
   ArrowLeft,
   Truck,
   ShieldCheck,
-  DollarSign
+  User,
+  Phone,
+  Mail,
+  ExternalLink,
+  ClipboardList
 } from 'lucide-react';
-import { fetchBooking } from '../../lib/api';
+import { fetchBooking, fetchAllBookings } from '../../lib/api';
 import { Booking } from '../../lib/types';
 
 export default function BookingsPage() {
   const [refInput, setRefInput] = useState('');
   const [booking, setBooking] = useState<Booking | null>(null);
+  const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Load recent bookings list
+    loadAllBookings();
+
     // If query param exists (e.g. ?ref=MECH-12345)
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -33,6 +41,15 @@ export default function BookingsPage() {
       }
     }
   }, []);
+
+  const loadAllBookings = async () => {
+    try {
+      const data = await fetchAllBookings();
+      setRecentBookings(data.bookings || []);
+    } catch {
+      // Graceful fallback if no bookings yet
+    }
+  };
 
   const searchBooking = async (reference: string) => {
     if (!reference.trim()) return;
@@ -60,35 +77,60 @@ export default function BookingsPage() {
       style={{
         minHeight: '100vh',
         padding: '24px 20px',
-        maxWidth: '800px',
+        maxWidth: '900px',
         margin: '0 auto',
       }}
     >
-      <div style={{ marginBottom: '24px' }}>
-        <Link
-          href="/"
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '14px', marginBottom: '24px' }}>
+        <div>
+          <Link
+            href="/"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              color: 'var(--amber-primary)',
+              textDecoration: 'none',
+              fontSize: '0.85rem',
+              marginBottom: '14px',
+            }}
+          >
+            <ArrowLeft size={16} /> Back to Diagnostic Chat
+          </Link>
+          <h1 style={{ fontSize: '1.65rem', fontWeight: 800, color: '#f8fafc' }}>
+            Mechanic Service & Bookings Bay
+          </h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+            Customer service dispatch records & administrative management.
+          </p>
+        </div>
+
+        {/* Admin Portal Button */}
+        <a
+          href="http://127.0.0.1:8000/admin/api/booking/"
+          target="_blank"
+          rel="noopener noreferrer"
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '6px',
+            gap: '8px',
+            background: 'rgba(245, 158, 11, 0.12)',
+            border: '1px solid rgba(245, 158, 11, 0.35)',
             color: 'var(--amber-primary)',
-            textDecoration: 'none',
+            padding: '8px 16px',
+            borderRadius: '10px',
             fontSize: '0.85rem',
-            marginBottom: '16px',
+            fontWeight: 600,
+            textDecoration: 'none',
+            marginTop: '8px'
           }}
         >
-          <ArrowLeft size={16} /> Back to Diagnostic Chat
-        </Link>
-        <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#f8fafc' }}>
-          Mechanic Service Tracking Bay
-        </h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-          Track appointment dispatch status, assigned technician, and repair scope.
-        </p>
+          <ShieldCheck size={16} /> Open Django Admin Dashboard <ExternalLink size={14} />
+        </a>
       </div>
 
       {/* Search Bar */}
-      <form onSubmit={handleSearch} style={{ display: 'flex', gap: '10px', marginBottom: '28px' }}>
+      <form onSubmit={handleSearch} style={{ display: 'flex', gap: '10px', marginBottom: '24px' }}>
         <div style={{ position: 'relative', flex: 1 }}>
           <Search size={18} style={{ position: 'absolute', left: '12px', top: '13px', color: 'var(--text-dim)' }} />
           <input
@@ -96,7 +138,7 @@ export default function BookingsPage() {
             required
             value={refInput}
             onChange={(e) => setRefInput(e.target.value)}
-            placeholder="Enter Booking Reference (e.g. MECH-84920)..."
+            placeholder="Search by Booking Reference (e.g. MECH-12345)..."
             style={{
               width: '100%',
               background: 'rgba(15, 23, 42, 0.9)',
@@ -122,19 +164,21 @@ export default function BookingsPage() {
             borderRadius: '12px',
             padding: '16px',
             color: '#fca5a5',
-            marginBottom: '20px',
+            marginBottom: '24px',
           }}
         >
           {error}
         </div>
       )}
 
+      {/* Detailed Booking Card */}
       {booking && (
         <div
           className="glass-panel"
           style={{
             padding: '28px',
             border: '1px solid rgba(245, 158, 11, 0.3)',
+            marginBottom: '32px'
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
@@ -164,10 +208,13 @@ export default function BookingsPage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
             <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '14px', borderRadius: '10px' }}>
-              <div style={{ fontSize: '0.76rem', color: 'var(--text-dim)', marginBottom: '4px' }}>Assigned Technician</div>
+              <div style={{ fontSize: '0.76rem', color: 'var(--text-dim)', marginBottom: '4px' }}>Customer</div>
               <div style={{ fontWeight: 600, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <ShieldCheck size={16} color="#10b981" />
-                {booking.mechanic_name}
+                <User size={16} color="var(--amber-primary)" />
+                {booking.customer_name}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                {booking.customer_phone}
               </div>
             </div>
 
@@ -180,10 +227,10 @@ export default function BookingsPage() {
             </div>
 
             <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '14px', borderRadius: '10px' }}>
-              <div style={{ fontSize: '0.76rem', color: 'var(--text-dim)', marginBottom: '4px' }}>Service Protocol</div>
-              <div style={{ fontWeight: 600, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Truck size={16} />
-                {booking.service_type}
+              <div style={{ fontSize: '0.76rem', color: 'var(--text-dim)', marginBottom: '4px' }}>Assigned Technician</div>
+              <div style={{ fontWeight: 600, color: '#10b981', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <ShieldCheck size={16} />
+                {booking.mechanic_name}
               </div>
             </div>
           </div>
@@ -212,6 +259,80 @@ export default function BookingsPage() {
           )}
         </div>
       )}
+
+      {/* List of All Confirmed Bookings (Admin & User View) */}
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+          <ClipboardList size={18} color="var(--amber-primary)" />
+          <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#f8fafc' }}>
+            Garage Service Roster ({recentBookings.length} Total Bookings)
+          </h2>
+        </div>
+
+        {recentBookings.length === 0 ? (
+          <div style={{ color: 'var(--text-dim)', fontSize: '0.9rem', fontStyle: 'italic', padding: '16px 0' }}>
+            No bookings recorded yet. Once a user books a mechanic via the chat diagnostic report, it appears here immediately.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {recentBookings.map((b) => (
+              <div
+                key={b.id}
+                onClick={() => {
+                  setRefInput(b.booking_reference);
+                  searchBooking(b.booking_reference);
+                }}
+                className="glass-panel"
+                style={{
+                  padding: '16px 20px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '12px',
+                  cursor: 'pointer',
+                  border: booking?.id === b.id ? '1px solid var(--amber-primary)' : '1px solid var(--border-subtle)',
+                  transition: 'border-color 0.15s ease'
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                    <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--amber-primary)', fontSize: '0.95rem' }}>
+                      {b.booking_reference}
+                    </span>
+                    <span style={{ fontWeight: 600, color: '#f8fafc', fontSize: '0.95rem' }}>
+                      {b.customer_name}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    {b.diagnosis_details?.primary_issue || 'Automotive Inspection'} • {b.scheduled_date} at {b.scheduled_time}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '9999px',
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      border: '1px solid rgba(16, 185, 129, 0.4)',
+                      color: '#34d399',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      textTransform: 'uppercase'
+                    }}
+                  >
+                    {b.status}
+                  </span>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--amber-primary)', fontWeight: 600 }}>
+                    View Details →
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

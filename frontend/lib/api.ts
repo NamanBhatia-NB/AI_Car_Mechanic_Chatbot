@@ -91,6 +91,14 @@ export async function fetchBooking(idOrReference: string): Promise<Booking> {
   return response.json();
 }
 
+export async function fetchAllBookings(): Promise<{ count: number; bookings: Booking[]; admin_dashboard_url: string }> {
+  const response = await fetch(`${API_BASE_URL}/booking/`, { cache: 'no-store' });
+  if (!response.ok) {
+    throw new Error('Failed to load bookings list.');
+  }
+  return response.json();
+}
+
 export async function fetchSessionHistory(sessionId: string): Promise<any> {
   const response = await fetch(`${API_BASE_URL}/chat/history/${sessionId}/`);
   if (!response.ok) {

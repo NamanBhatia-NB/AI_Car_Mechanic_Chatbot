@@ -518,10 +518,13 @@ class BookingView(APIView):
     GET /api/booking/{id}/ - Retrieve appointment status and assignment.
     """
     def get(self, request):
+        bookings = Booking.objects.select_related('diagnosis', 'diagnosis__session').all().order_by('-created_at')
+        serializer = BookingSerializer(bookings, many=True, context={'request': request})
         return Response({
-            'message': 'Instant Mechanic Booking Endpoint. Send a POST request to book a technician, or GET /api/booking/<id_or_ref>/ to track an existing booking.',
-            'method': 'POST',
-            'interactive_docs': request.build_absolute_uri('/api/docs/')
+            'count': bookings.count(),
+            'admin_dashboard_url': request.build_absolute_uri('/admin/api/booking/'),
+            'interactive_docs': request.build_absolute_uri('/api/docs/'),
+            'bookings': serializer.data
         })
 
     @extend_schema(
