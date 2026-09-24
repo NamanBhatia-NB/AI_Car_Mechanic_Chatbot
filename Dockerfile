@@ -23,6 +23,6 @@ COPY backend/ /app/
 RUN python manage.py migrate --no-input || true
 RUN python manage.py collectstatic --no-input || true
 
-EXPOSE 80 8080 8000
+EXPOSE 8080 80 8000
 
-CMD ["sh", "-c", "python manage.py migrate && gunicorn mechanic_backend.wsgi:application --bind 0.0.0.0:${PORT:-80} --bind 0.0.0.0:8080 --workers 2 --timeout 120"]
+CMD ["sh", "-c", "python manage.py migrate && gunicorn mechanic_backend.wsgi:application --bind 0.0.0.0:${PORT:-8080} --workers 2 --timeout 120"]

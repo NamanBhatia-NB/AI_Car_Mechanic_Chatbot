@@ -2,11 +2,13 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from django.views.generic import RedirectView
+from api.views import HealthCheckView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 urlpatterns = [
-    path('', RedirectView.as_view(url='/api/docs/', permanent=False), name='root-redirect'),
+    path('', HealthCheckView.as_view(), name='root-health'),
+    path('health/', HealthCheckView.as_view(), name='health'),
+    path('healthz/', HealthCheckView.as_view(), name='healthz'),
     path('admin/', admin.site.urls),
     path('api/', include('api.urls')),
     
